@@ -101,6 +101,57 @@ class TextDocument
             CursorPosition++;
     }
 
+
+    public void MoveToPreviousLine()
+    {
+        int currentColumn = CurrentColumn;
+
+        if (CurrentLine == 0)
+            return;
+
+        int previousLineStart = CursorPosition - CurrentColumn - 1;
+
+        while (previousLineStart > 0 && _buffer.CharAt(previousLineStart - 1) != '\n')
+        {
+            previousLineStart--;
+        }
+
+        int previousLineEnd = previousLineStart;
+
+        while (previousLineEnd < Length && _buffer.CharAt(previousLineEnd) != '\n')
+        {
+            previousLineEnd++;
+        }
+
+        CursorPosition = Math.Min(previousLineStart + currentColumn, previousLineEnd);
+    }
+
+    public void MoveToNextLine()
+    {
+        int currentColumn = CurrentColumn;
+
+        int currentLineEnd = CursorPosition;
+
+        while (currentLineEnd < Length && _buffer.CharAt(currentLineEnd) != '\n')
+        {
+            currentLineEnd++;
+        }
+
+        if (currentLineEnd >= Length)
+            return;
+
+        int nextLineStart = currentLineEnd + 1;
+
+        int nextLineEnd = nextLineStart;
+
+        while (nextLineEnd < Length && _buffer.CharAt(nextLineEnd) != '\n')
+        {
+            nextLineEnd++;
+        }
+
+        CursorPosition = Math.Min(nextLineStart + currentColumn, nextLineEnd);
+    }
+
     public void MoveToStart()
     {
         CursorPosition = 0;
@@ -109,7 +160,7 @@ class TextDocument
     public void MoveToEnd()
     {
         CursorPosition = Length;
-    }
+    }    
 
     public void NextLine()
     {

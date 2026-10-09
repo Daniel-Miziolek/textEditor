@@ -20,16 +20,14 @@ namespace TextEditor.Controls
 
         private double _fontSize = 20;
 
-        private readonly Brush _background =
-            new SolidColorBrush(Color.FromRgb(46, 46, 51));
+        private readonly Brush _background = new SolidColorBrush(Color.FromRgb(46, 46, 51));
 
-        private readonly Brush _textBrush =
-            new SolidColorBrush(Color.FromRgb(213, 213, 219));
+        private readonly Brush _textBrush = new SolidColorBrush(Color.FromRgb(213, 213, 219));
 
-        private readonly Brush _cursorBrush =
-            new SolidColorBrush(Color.FromRgb(213, 213, 219));
+        private readonly Brush _cursorBrush = new SolidColorBrush(Color.FromRgb(213, 213, 219));
 
         private double _horizontalOffset = 0;
+        private double _verticalOffset = 0;
 
         public TextEditorControl()
         {
@@ -48,14 +46,8 @@ namespace TextEditor.Controls
         protected override void OnRender(DrawingContext dc)
         {
             base.OnRender(dc);
-
-            dc.DrawRectangle(
-                _background,
-                null,
-                new Rect(0, 0, ActualWidth, ActualHeight));
-
+            dc.DrawRectangle(_background, null, new Rect(0, 0, ActualWidth, ActualHeight));
             DrawText(dc);
-
             DrawCursor(dc);
         }
 
@@ -77,18 +69,15 @@ namespace TextEditor.Controls
                     _textBrush,
                     VisualTreeHelper.GetDpi(this).PixelsPerDip);
 
-                double y = 10 + line * lineHeight;
+                double y = 10 + line * lineHeight - _verticalOffset;
 
-                dc.DrawText(
-                    formattedText,
-                    new Point(x, y));
+                dc.DrawText(formattedText, new Point(x, y));
             }
         }
 
         private void DrawCursor(DrawingContext dc)
         {
-            string textBeforeCursor =
-                _document.GetTextBeforeCursorOnCurrentLine();
+            string textBeforeCursor = _document.GetTextBeforeCursorOnCurrentLine();
 
             var formattedText = new FormattedText(
                 textBeforeCursor,
@@ -103,8 +92,7 @@ namespace TextEditor.Controls
 
             double cursorX = 10 - _horizontalOffset + formattedText.WidthIncludingTrailingWhitespace;
 
-            double cursorY = 10 + _document.CurrentLine * lineHeight;
-
+            double cursorY = 10 + _document.CurrentLine * lineHeight - _verticalOffset;
             double cursorHeight = _fontSize;
 
             dc.DrawLine(
@@ -149,13 +137,48 @@ namespace TextEditor.Controls
 
             if (cursorX < visibleLeft)
             {
-                _horizontalOffset =
-                    cursorX - leftMargin;
+                _horizontalOffset = cursorX - leftMargin;
             }
 
             if (_horizontalOffset < 0)
             {
                 _horizontalOffset = 0;
+            }
+
+
+            double lineHeight = _fontSize;
+
+            double cursorY = 10 + _document.CurrentLine * lineHeight;
+
+            double topMargin = 10;
+            double bottomMargin = 10;
+
+            double visibleBottom = _verticalOffset + ActualHeight - bottomMargin;
+
+            if (cursorY + lineHeight > visibleBottom)
+            {
+                _verticalOffset = cursorY + lineHeight - ActualHeight + bottomMargin;
+            }
+
+            double visibleTop = _verticalOffset + topMargin;
+
+            if (cursorY < visibleTop)
+            {
+                _verticalOffset = cursorY - topMargin;
+            }
+
+            if (_verticalOffset < 0)
+            {
+                _verticalOffset = 0;
+            }
+
+            double contentHeight = 20 + _document.LineCount * lineHeight;
+
+            double maxOffset = Math.Max(0, contentHeight - ActualHeight);
+
+            if (_verticalOffset > maxOffset)
+            {
+                _verticalOffset = maxOffset;
             }
         }
 
@@ -185,42 +208,42 @@ namespace TextEditor.Controls
                     _document.MoveToLeft();
                     EnsureCursorVisible();
                     break;
-
                 case Key.Right:
                     _document.MoveToRight();
                     EnsureCursorVisible();
                     break;
-
+                case Key.Up:
+                    _document.MoveToPreviousLine();
+                    EnsureCursorVisible();
+                    break;
+                case Key.Down:
+                    _document.MoveToNextLine();
+                    EnsureCursorVisible();
+                    break;
                 case Key.Home:
                     _document.MoveToStart();
                     EnsureCursorVisible();
                     break;
-
                 case Key.End:
                     _document.MoveToEnd();
                     EnsureCursorVisible();
                     break;
-
                 case Key.Back:
                     _document.Backspace();
                     EnsureCursorVisible();
                     break;
-
                 case Key.Delete:
                     _document.Delete();
                     EnsureCursorVisible();
                     break;
-
                 case Key.Enter:
                     _document.NextLine();
                     EnsureCursorVisible();
                     break;
-
                 case Key.Tab:
                     _document.Insert('\t');
                     EnsureCursorVisible();
                     break;
-
                 default:
                     return;
             }
