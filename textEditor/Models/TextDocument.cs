@@ -1,239 +1,377 @@
-﻿using System.Text;
+﻿using System;
+using System.Text;
 using TextEditor.Models;
 
-class TextDocument
+namespace TextEditor
 {
-    public GapBuffer _buffer { get; }
-
-    public int CursorPosition { get; private set; }
-
-    public int Length => _buffer.Length;
-    public int CurrentLine
+    public class TextDocument
     {
-        get
-        {
-            int line = 0;
+        public GapBuffer _buffer { get; }
 
-            for (int i = 0;  i < CursorPosition;  i++)
+        public int CursorPosition { get; private set; }
+
+        public int Length => _buffer.Length;
+
+        public int SelectionStart { get; private set; } = -1;
+        public int SelectionEnd { get; private set; } = -1;
+
+        private int _selectionAnchor = -1;
+        private int _preferredColumn = -1;
+
+        public bool HasSelection => SelectionStart >= 0 && SelectionEnd > SelectionStart;
+
+        public int CurrentLine
+        {
+            get
             {
-                if (_buffer.CharAt(i) == '\n')
-                    line++;
+                int line = 0;
+
+                for (int i = 0; i < CursorPosition; i++)
+                {
+                    if (_buffer.CharAt(i) == '\n')
+                        line++;
+                }
+
+                return line;
             }
-
-            return line;
         }
-    }
 
-    public int CurrentColumn
-    {
-        get
+        public int CurrentColumn
         {
-            for (int i = CursorPosition - 1; i >= 0; i--)
+            get
             {
-                if (_buffer.CharAt(i) == '\n')
-                    return CursorPosition - i - 1;
+                for (int i = CursorPosition - 1; i >= 0; i--)
+                {
+                    if (_buffer.CharAt(i) == '\n')
+                        return CursorPosition - i - 1;
+                }
+
+                return CursorPosition;
             }
-
-            return CursorPosition;
         }
-    }
 
-    public TextDocument()
-    {
-        _buffer = new GapBuffer();
-        CursorPosition = 0;
-    }
-
-    public TextDocument(string text)
-    {
-        _buffer = new GapBuffer(Math.Max(128, text.Length));
-
-        if (!string.IsNullOrEmpty(text))
+        public TextDocument()
         {
-            for (int i = 0; i < text.Length; i++)
-                _buffer.Insert(i, text[i]);
+            _buffer = new GapBuffer();
+            CursorPosition = 0;
         }
 
-        CursorPosition = _buffer.Length;
-    }
+        public TextDocument(string text)
+        {
+            text ??= string.Empty;
 
-    public void Insert(char c)
-    {
-        _buffer.Insert(CursorPosition, c);
-        CursorPosition++;
-    }
+            _buffer = new GapBuffer(Math.Max(128, text.Length));
 
-    public void Insert(string text)
-    {
-        if (string.IsNullOrEmpty(text))
-            return;
+            foreach (char c in text)
+                _buffer.Insert(_buffer.Length, c);
 
-        foreach (char c in text)
-            Insert(c);
-    }
+            CursorPosition = _buffer.Length;
+        }
 
-    public void Backspace()
-    {
-        if (CursorPosition <= 0)
-            return;
+        public void Insert(char c)
+        {
+            ReplaceSelectionIfNeeded();
 
-        _buffer.Delete(CursorPosition - 1, 1);
-        CursorPosition--;
-    }
-
-    public void Delete()
-    {
-        if (CursorPosition >= Length)
-            return;
-
-        _buffer.Delete(CursorPosition, 1);
-    }
-
-    public void MoveToLeft()
-    {
-        if (CursorPosition > 0)
-            CursorPosition--;
-    }
-
-    public void MoveToRight()
-    {
-        if (CursorPosition < Length)
+            _buffer.Insert(CursorPosition, c);
             CursorPosition++;
-    }
 
-
-    public void MoveToPreviousLine()
-    {
-        int currentColumn = CurrentColumn;
-
-        if (CurrentLine == 0)
-            return;
-
-        int previousLineStart = CursorPosition - CurrentColumn - 1;
-
-        while (previousLineStart > 0 && _buffer.CharAt(previousLineStart - 1) != '\n')
-        {
-            previousLineStart--;
+            _preferredColumn = -1;
         }
 
-        int previousLineEnd = previousLineStart;
-
-        while (previousLineEnd < Length && _buffer.CharAt(previousLineEnd) != '\n')
+        public void Insert(string text)
         {
-            previousLineEnd++;
-        }
+            if (string.IsNullOrEmpty(text))
+                return;
 
-        CursorPosition = Math.Min(previousLineStart + currentColumn, previousLineEnd);
-    }
+            ReplaceSelectionIfNeeded();
 
-    public void MoveToNextLine()
-    {
-        int currentColumn = CurrentColumn;
-
-        int currentLineEnd = CursorPosition;
-
-        while (currentLineEnd < Length && _buffer.CharAt(currentLineEnd) != '\n')
-        {
-            currentLineEnd++;
-        }
-
-        if (currentLineEnd >= Length)
-            return;
-
-        int nextLineStart = currentLineEnd + 1;
-
-        int nextLineEnd = nextLineStart;
-
-        while (nextLineEnd < Length && _buffer.CharAt(nextLineEnd) != '\n')
-        {
-            nextLineEnd++;
-        }
-
-        CursorPosition = Math.Min(nextLineStart + currentColumn, nextLineEnd);
-    }
-
-    public void MoveToStart()
-    {
-        CursorPosition = 0;
-    }
-
-    public void MoveToEnd()
-    {
-        CursorPosition = Length;
-    }    
-
-    public void NextLine()
-    {
-        Insert('\n');
-    }
-
-    public char CharAt(int pos)
-    {
-        return _buffer.CharAt(pos);
-    }
-
-    public override string ToString()
-    {
-        return _buffer.ToString();
-    }
-
-    public string GetLine(int lineNumber)
-    {
-        int currentLine = 0;
-        var sb = new StringBuilder();
-
-        for (int i = 0; i < Length; i++)
-        {
-            char c = _buffer.CharAt(i);
-
-            if (c == '\n')
+            foreach (char c in text)
             {
-                if (currentLine == lineNumber)
-                    return sb.ToString();
+                _buffer.Insert(CursorPosition, c);
+                CursorPosition++;
+            }
 
-                currentLine++;
-                sb.Clear();
+            _preferredColumn = -1;
+        }
+
+        private void ReplaceSelectionIfNeeded()
+        {
+            if (HasSelection)
+                DeleteSelection();
+            else
+                ClearSelection();
+        }
+
+        public void Backspace()
+        {
+            if (HasSelection)
+            {
+                DeleteSelection();
+                return;
+            }
+
+            if (CursorPosition <= 0)
+                return;
+
+            _buffer.Delete(CursorPosition - 1, 1);
+            CursorPosition--;
+
+            _preferredColumn = -1;
+        }
+
+        public void Delete()
+        {
+            if (HasSelection)
+            {
+                DeleteSelection();
+                return;
+            }
+
+            if (CursorPosition >= Length)
+                return;
+
+            _buffer.Delete(CursorPosition, 1);
+
+            _preferredColumn = -1;
+        }
+
+        public void DeleteSelection()
+        {
+            if (!HasSelection)
+            {
+                ClearSelection();
+                return;
+            }
+
+            int start = SelectionStart;
+            int count = SelectionEnd - SelectionStart;
+
+            _buffer.Delete(start, count);
+            CursorPosition = start;
+
+            ClearSelection();
+            _preferredColumn = -1;
+        }
+
+        public void MoveToLeft()
+        {
+            if (CursorPosition > 0)
+                CursorPosition--;
+
+            _preferredColumn = -1;
+        }
+
+        public void MoveToRight()
+        {
+            if (CursorPosition < Length)
+                CursorPosition++;
+
+            _preferredColumn = -1;
+        }
+
+        public void MoveToLeftAndClearSelection()
+        {
+            if (HasSelection)
+                CursorPosition = SelectionStart;
+            else
+                MoveToLeft();
+
+            ClearSelection();
+            _preferredColumn = -1;
+        }
+
+        public void MoveToRightAndClearSelection()
+        {
+            if (HasSelection)
+                CursorPosition = SelectionEnd;
+            else
+                MoveToRight();
+
+            ClearSelection();
+            _preferredColumn = -1;
+        }
+
+        public void StartSelection()
+        {
+            if (_selectionAnchor < 0)
+                _selectionAnchor = CursorPosition;
+
+            UpdateSelection();
+        }
+
+        public void UpdateSelection()
+        {
+            if (_selectionAnchor < 0)
+                return;
+
+            SelectionStart = Math.Min(_selectionAnchor, CursorPosition);
+            SelectionEnd = Math.Max(_selectionAnchor, CursorPosition);
+        }
+
+        public void ClearSelection()
+        {
+            SelectionStart = -1;
+            SelectionEnd = -1;
+            _selectionAnchor = -1;
+        }
+
+        public void MoveToPreviousLine()
+        {
+            MoveVertical(-1);
+        }
+
+        public void MoveToNextLine()
+        {
+            MoveVertical(1);
+        }
+
+        public void SelectAll()
+        {
+            _selectionAnchor = 0;
+            SelectionStart = 0;
+            SelectionEnd = Length;
+            CursorPosition = Length;
+        }
+
+        private void MoveVertical(int direction)
+        {
+            if (_preferredColumn < 0)
+                _preferredColumn = CurrentColumn;
+
+            int lineStart = CursorPosition - CurrentColumn;
+            int targetStart;
+
+            if (direction < 0)
+            {
+                if (CurrentLine == 0)
+                    return;
+
+                targetStart = lineStart - 1;
+
+                while (targetStart > 0 && _buffer.CharAt(targetStart - 1) != '\n')
+                    targetStart--;
             }
             else
             {
-                if (currentLine == lineNumber)
-                    sb.Append(c);
+                int currentEnd = lineStart;
+
+                while (currentEnd < Length && _buffer.CharAt(currentEnd) != '\n')
+                    currentEnd++;
+
+                if (currentEnd >= Length)
+                    return;
+
+                targetStart = currentEnd + 1;
             }
+
+            int targetEnd = targetStart;
+
+            while (targetEnd < Length && _buffer.CharAt(targetEnd) != '\n')
+                targetEnd++;
+
+            CursorPosition = Math.Min(targetStart + _preferredColumn, targetEnd);
         }
 
-        if (currentLine == lineNumber)
-            return sb.ToString();
-
-        return string.Empty;
-    }
-
-    public int LineCount
-    {
-        get
+        public void MoveToStart()
         {
-            int count = 1;
+            int position = CursorPosition;
+
+            while (position > 0 && _buffer.CharAt(position - 1) != '\n')
+                position--;
+
+            CursorPosition = position;
+            _preferredColumn = -1;
+        }
+
+        public void MoveToEnd()
+        {
+            int position = CursorPosition;
+
+            while (position < Length && _buffer.CharAt(position) != '\n')
+                position++;
+
+            CursorPosition = position;
+            _preferredColumn = -1;
+        }
+
+        public void MoveToDocumentStart()
+        {
+            CursorPosition = 0;
+            _preferredColumn = -1;
+        }
+
+        public void MoveToDocumentEnd()
+        {
+            CursorPosition = Length;
+            _preferredColumn = -1;
+        }
+
+        public void NextLine()
+        {
+            Insert('\n');
+        }
+
+        public char CharAt(int pos)
+        {
+            return _buffer.CharAt(pos);
+        }
+
+        public override string ToString()
+        {
+            return _buffer.ToString();
+        }
+
+        public string GetLine(int lineNumber)
+        {
+            int currentLine = 0;
+            var sb = new StringBuilder();
 
             for (int i = 0; i < Length; i++)
             {
-                if (_buffer.CharAt(i) == '\n')
-                    count++;
+                char c = _buffer.CharAt(i);
+
+                if (c == '\n')
+                {
+                    if (currentLine == lineNumber)
+                        return sb.ToString();
+
+                    currentLine++;
+                    sb.Clear();
+                }
+                else if (currentLine == lineNumber)
+                {
+                    sb.Append(c);
+                }
             }
 
-            return count;
+            return currentLine == lineNumber ? sb.ToString() : string.Empty;
         }
-    }
 
-    public string GetTextBeforeCursorOnCurrentLine()
-    {
-        int lineStart = CursorPosition - CurrentColumn;
-
-        var sb = new StringBuilder();
-
-        for (int i = lineStart; i < CursorPosition; i++)
+        public int LineCount
         {
-            sb.Append(_buffer.CharAt(i));
+            get
+            {
+                int count = 1;
+
+                for (int i = 0; i < Length; i++)
+                {
+                    if (_buffer.CharAt(i) == '\n')
+                        count++;
+                }
+
+                return count;
+            }
         }
 
-        return sb.ToString();
+        public string GetTextBeforeCursorOnCurrentLine()
+        {
+            int lineStart = CursorPosition - CurrentColumn;
+            var sb = new StringBuilder();
+
+            for (int i = lineStart; i < CursorPosition; i++)
+                sb.Append(_buffer.CharAt(i));
+
+            return sb.ToString();
+        }
     }
 }
