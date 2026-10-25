@@ -14,6 +14,27 @@
     </Window.DataContext>
 
     <Grid>
-        <controls:TextEditorControl/>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Menu Grid.Row="0" Background="#1e1e21" Foreground="White" FontSize="15">
+            <Menu.Resources>
+                <Style TargetType="MenuItem">
+                    <Setter Property="Foreground" Value="Black"/>
+                </Style>
+            </Menu.Resources>
+
+            <MenuItem Header="File" Foreground="White">
+                <MenuItem Header="New File" Command="{Binding NewFile}"/>
+                <MenuItem Header="Save" Command="{Binding Save}"/>
+                <MenuItem Header="Save As" Command="{Binding SaveAs}"/>
+                <Separator/>
+                <MenuItem Header="Exit" Command="{Binding Exit}"/>
+            </MenuItem>
+        </Menu>
+
+        <controls:TextEditorControl Grid.Row="1"/>
     </Grid>
 </Window>
