@@ -35,6 +35,6 @@
             </MenuItem>
         </Menu>
 
-        <controls:TextEditorControl Grid.Row="1"/>
+        <controls:TextEditorControl Grid.Row="1" Document="{Binding Document}"/>
     </Grid>
 </Window>

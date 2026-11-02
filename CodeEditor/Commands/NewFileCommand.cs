@@ -8,9 +8,16 @@ namespace TextEditor.Commands
 {
     public class NewFileCommand : CommandBase
     {
+        private readonly Action _onNewFile;
+
+        public NewFileCommand(Action onNewFile)
+        {
+            _onNewFile = onNewFile;
+        }
+
         public override void Execute(object? parameter)
         {
-            throw new NotImplementedException();
+            _onNewFile();
         }
     }
 }
